@@ -1,100 +1,139 @@
-# mining_quality_kedro
+# Mining Process Quality Prediction with Kedro
 
-[![Powered by Kedro](https://img.shields.io/badge/powered_by-kedro-ffc900?logo=kedro)](https://kedro.org)
+## 📌 Overview
+This project implements an **end-to-end, reproducible Machine Learning pipeline** to predict **silica concentration in a mining flotation process**, using **Kedro** as the orchestration framework.
 
-## Overview
+The solution is based on the Kaggle dataset **“Quality Prediction in a Mining Process”** and refactors a traditional notebook-based approach into a **production-grade data pipeline**, including:
+- Data ingestion and cleaning
+- Time-based resampling
+- Temporal train/test split
+- XGBoost regression model
+- Model evaluation
+- SHAP explainability
 
-This is your new Kedro project, which was generated using `kedro 1.1.1`.
+The goal is not only prediction accuracy, but **traceability, reproducibility, and interpretability**, following industry best practices.
 
-Take a look at the [Kedro documentation](https://docs.kedro.org) to get started.
+---
 
-## Rules and guidelines
+## 🏭 Business Context
+In mineral processing plants, **silica concentration in the concentrate** is a critical quality indicator:
+- High silica reduces concentrate quality
+- Impacts downstream processing and costs
+- Requires continuous monitoring and control
 
-In order to get the best out of the template:
+This project demonstrates how historical sensor data can be leveraged to **predict quality deviations** and **understand which process variables drive them**.
 
-* Don't remove any lines from the `.gitignore` file we provide
-* Make sure your results can be reproduced by following a [data engineering convention](https://docs.kedro.org/en/stable/faq/faq.html#what-is-data-engineering-convention)
-* Don't commit data to your repository
-* Don't commit any credentials or your local configuration to your repository. Keep all your credentials and local configuration in `conf/local/`
+---
 
-## How to install dependencies
+## 📊 Dataset
+- Source: Kaggle – *Quality Prediction in a Mining Process*
+- Sampling rate: ~20 seconds
+- Size: ~737,000 rows
+- Features: process sensors (flows, pressures, reagents, air flow, etc.)
+- Target variable: % Silica Concentrate
 
-Declare any dependencies in `requirements.txt` for `pip` installation.
 
-To install them, run:
+Raw data is **not stored in the repository** to keep it lightweight and reproducible.
 
+---
+
+## 🧱 Project Architecture (Kedro)
+
+The project follows Kedro’s standard structure:
+
+```text
+mining-quality-kedro/
+├── conf/
+│   ├── base/
+│   │   ├── catalog.yml
+│   │   └── parameters.yml
+├── src/
+│   └── mining_quality_kedro/
+│       ├── pipelines/
+│       │   └── mining_quality/
+│       │       ├── nodes.py
+│       │       └── pipeline.py
+│       └── pipeline_registry.py
+├── pyproject.toml
+└── README.md
 ```
-pip install -r requirements.txt
+
+---
+
+## Pipeline Description
+
+### 1. Data Cleaning
+- Datetime parsing
+- Conversion of decimal-comma values (e.g. `55,3 → 55.3`)
+- Duplicate and invalid row removal
+
+### 2. Time Resampling
+- Sensor data resampled to **hourly averages**
+- Noise reduction and operational alignment
+
+### 3. Temporal Train/Test Split
+- Split performed strictly by time
+- No shuffling, preserving real forecasting conditions
+
+### 4. Model Training
+- XGBoost Regressor
+- Robust to non-linear relationships and sensor noise
+
+### 5. Model Evaluation
+- RMSE
+- MAE
+- R² score
+
+### 6. Explainability
+- SHAP (SHapley Additive exPlanations)
+- Global feature importance visualization
+- Interpretability suitable for process engineers
+
+---
+
+## Outputs
+After executing the pipeline, the following artifacts are generated locally:
+- Cleaned and resampled datasets (Parquet)
+- Trained XGBoost model
+- Evaluation metrics (`metrics.json`)
+- SHAP summary plot (`shap_summary.png`)
+
+These artifacts are excluded from version control.
+
+---
+
+## How to Run
+
+### 1. Create and activate virtual environment
+```bash
+python -m venv .venv
+.venv\Scripts\activate
 ```
 
-## How to run your Kedro pipeline
-
-You can run your Kedro project with:
-
+### 2. Install dependencies
+```bash
+pip install kedro kedro-datasets pandas numpy scikit-learn xgboost shap pyarrow matplotlib
 ```
+
+### 3. Run the pipeline
+```bash
 kedro run
 ```
 
-## How to test your Kedro project
 
-Have a look at the files `tests/test_run.py` and `tests/pipelines/data_science/test_pipeline.py` for instructions on how to write your tests. Run the tests as follows:
-
-```
-pytest
+### 4. Visualize pipeline DAG
+```bash
+kedro viz
 ```
 
-You can configure the coverage threshold in your project's `pyproject.toml` file under the `[tool.coverage.report]` section.
+## Reference
 
-## Project dependencies
+This project is inspired by a Kaggle solution using XGBoost and SHAP, re-engineered here into a modular, maintainable and reproducible ML pipeline.
 
-To see and update the dependency requirements for your project use `requirements.txt`. You can install the project requirements with `pip install -r requirements.txt`.
+## Future Improvements
 
-[Further information about project dependencies](https://docs.kedro.org/en/stable/kedro_project_setup/dependencies.html#project-specific-dependencies)
-
-## How to work with Kedro and notebooks
-
-> Note: Using `kedro jupyter` or `kedro ipython` to run your notebook provides these variables in scope: `catalog`, `context`, `pipelines` and `session`.
->
-> Jupyter, JupyterLab, and IPython are already included in the project requirements by default, so once you have run `pip install -r requirements.txt` you will not need to take any extra steps before you use them.
-
-### Jupyter
-To use Jupyter notebooks in your Kedro project, you need to install Jupyter:
-
-```
-pip install jupyter
-```
-
-After installing Jupyter, you can start a local notebook server:
-
-```
-kedro jupyter notebook
-```
-
-### JupyterLab
-To use JupyterLab, you need to install it:
-
-```
-pip install jupyterlab
-```
-
-You can also start JupyterLab:
-
-```
-kedro jupyter lab
-```
-
-### IPython
-And if you want to run an IPython session:
-
-```
-kedro ipython
-```
-
-### How to ignore notebook output cells in `git`
-To automatically strip out all output cell contents before committing to `git`, you can use tools like [`nbstripout`](https://github.com/kynan/nbstripout). For example, you can add a hook in `.git/config` with `nbstripout --install`. This will run `nbstripout` before anything is committed to `git`.
-
-> *Note:* Your output cells will be retained locally.
-
-## Package your Kedro project
-
-[Further information about building project documentation and packaging your project](https://docs.kedro.org/en/stable/tutorial/package_a_project.html)
+- MLflow experiment tracking
+- Hyperparameter optimization
+- Feature selection pipelines
+- Real-time inference integration
+- Deployment-ready packaging
