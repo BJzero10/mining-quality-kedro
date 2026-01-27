@@ -1,0 +1,13 @@
+target_col: "% Silica Concentrate"
+date_col: "date"
+test_size: 0.2
+resample_rule: "1h"   # opción A: promedio por hora
+xgb_params:
+  n_estimators: 600
+  max_depth: 6
+  learning_rate: 0.05
+  subsample: 0.8
+  colsample_bytree: 0.8
+  reg_alpha: 0.0
+  reg_lambda: 1.0
+  random_state: 42
