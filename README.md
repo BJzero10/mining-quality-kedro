@@ -58,6 +58,77 @@ mining-quality-kedro/
 └── README.md
 ```
 
+suggested structure:
+```text
+mining-quality-kedro/
+├── conf/
+│   ├── base/
+│   │   ├── catalog.yml              # datasets base (raw, intermediate, features)
+│   │   ├── parameters.yml           # parámetros globales
+│   │   └── logging.yml              # config de logging
+│   ├── local/
+│   │   ├── catalog.yml              # overrides locales
+│   │   ├── parameters.yml
+│   │   └── credentials.yml          # NO versionar
+│   └── README.md                    # cómo funciona la config
+│
+├── data/
+│   ├── 01_raw/                      # datos crudos (sensores, laboratorio, etc.)
+│   ├── 02_intermediate/             # datos limpios parciales
+│   ├── 03_primary/                  # datasets listos para análisis
+│   ├── 04_feature/                  # features calculadas
+│   ├── 05_model_input/
+│   ├── 06_models/
+│   └── 07_model_output/
+│
+├── docs/
+│   ├── source/
+│   └── README.md
+│
+├── notebooks/
+│   └── exploration.ipynb            # EDA sin romper el pipeline
+│
+├── src/
+│   └── mining_quality_kedro/
+│       ├── __init__.py
+│       ├── settings.py              # hooks, context, config
+│       │
+│       ├── pipelines/
+│       │   ├── __init__.py
+│       │   │
+│       │   ├── data_pre_processing/
+│       │   │   ├── __init__.py
+│       │   │   ├── nodes.py          # limpieza, validaciones, imputaciones
+│       │   │   └── pipeline.py
+│       │   │
+│       │   ├── quality_metrics/
+│       │   │   ├── __init__.py
+│       │   │   ├── nodes.py          # métricas de calidad (outliers, drift, etc.)
+│       │   │   └── pipeline.py
+│       │   │
+│       │   └── reporting/
+│       │       ├── __init__.py
+│       │       ├── nodes.py          # reportes, KPIs
+│       │       └── pipeline.py
+│       │
+│       ├── pipeline_registry.py     # registra y conecta pipelines
+│       └── utils/
+│           ├── __init__.py
+│           ├── validators.py        # reglas de calidad
+│           └── constants.py
+│
+├── tests/
+│   ├── __init__.py
+│   ├── pipelines/
+│   │   └── test_data_pre_processing.py
+│   └── test_run.py
+│
+├── pyproject.toml
+├── requirements.txt
+├── .gitignore
+└── README.md
+```
+
 ---
 
 ## Pipeline Description
