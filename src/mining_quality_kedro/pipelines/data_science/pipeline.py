@@ -1,28 +1,40 @@
-from kedro.pipeline import Node, Pipeline
+from __future__ import annotations
 
-from .nodes import evaluate_model, split_data, train_model
+from kedro.pipeline import Pipeline, node, pipeline
+from .nodes import train_xgb, predict, evaluate
 
 
 def create_pipeline(**kwargs) -> Pipeline:
-    return Pipeline(
+    return pipeline(
         [
-            Node(
-                func=split_data,
-                inputs=["model_input_table", "params:model_options"],
-                outputs=["X_train", "X_test", "y_train", "y_test"],
-                name="split_data_node",
+            node(
+                func=train_xgb,
+                inputs=dict(
+                    train_df="train_set",
+                    target_col="params:target_col",
+                    date_col="params:date_col",
+                    xgb_params="params:xgb_params",
+                ),
+                outputs="xgb_model",
+                name="ds_train_xgb",
             ),
-            Node(
-                func=train_model,
-                inputs=["X_train", "y_train"],
-                outputs="regressor",
-                name="train_model_node",
+            node(
+                func=predict,
+                inputs=dict(
+                    model="xgb_model",
+                    test_df="test_set",
+                    target_col="params:target_col",
+                    date_col="params:date_col",
+                ),
+                outputs="predictions",
+                name="ds_predict",
             ),
-            Node(
-                func=evaluate_model,
-                inputs=["regressor", "X_test", "y_test"],
+            node(
+                func=evaluate,
+                inputs="predictions",
                 outputs="metrics",
-                name="evaluate_model_node",
+                name="ds_evaluate",
             ),
-        ]
+        ],
+        tags=["data_science"],
     )

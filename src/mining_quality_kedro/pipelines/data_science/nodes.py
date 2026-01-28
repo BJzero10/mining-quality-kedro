@@ -1,57 +1,58 @@
-import logging
+from __future__ import annotations
 
+from typing import Dict
+import numpy as np
 import pandas as pd
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import max_error, mean_absolute_error, r2_score
-from sklearn.model_selection import train_test_split
+
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from xgboost import XGBRegressor
 
 
-def split_data(data: pd.DataFrame, parameters: dict) -> tuple:
-    """Splits data into features and targets training and test sets.
+def train_xgb(train_df: pd.DataFrame, target_col: str, date_col: str, xgb_params: Dict) -> XGBRegressor:
+    if target_col not in train_df.columns:
+        raise ValueError(f"target_col='{target_col}' no existe. Columnas: {list(train_df.columns)}")
 
-    Args:
-        data: Data containing features and target.
-        parameters: Parameters defined in parameters/data_science.yml.
-    Returns:
-        Split data.
-    """
-    X = data[parameters["features"]]
-    y = data["price"]
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=parameters["test_size"], random_state=parameters["random_state"]
+    X = train_df.drop(columns=[target_col])
+    if date_col in X.columns:
+        X = X.drop(columns=[date_col])
+    y = train_df[target_col].astype(float)
+
+    model = XGBRegressor(**xgb_params)
+    model.fit(X, y)
+    return model
+
+
+def predict(model: XGBRegressor, test_df: pd.DataFrame, target_col: str, date_col: str) -> pd.DataFrame:
+    """Devuelve dataframe con date, y_true, y_pred y residual."""
+    if target_col not in test_df.columns:
+        raise ValueError(f"target_col='{target_col}' no existe en test_df.")
+
+    X = test_df.drop(columns=[target_col])
+    if date_col in X.columns:
+        X = X.drop(columns=[date_col])
+
+    y_true = test_df[target_col].astype(float).to_numpy()
+    y_pred = model.predict(X)
+
+    out = pd.DataFrame(
+        {
+            date_col: pd.to_datetime(test_df[date_col], errors="coerce").to_numpy(),
+            "y_true": y_true,
+            "y_pred": y_pred,
+        }
     )
-    return X_train, X_test, y_train, y_test
+    out["residual"] = out["y_true"] - out["y_pred"]
+    out = out.sort_values(date_col).reset_index(drop=True)
+    return out
 
 
-def train_model(X_train: pd.DataFrame, y_train: pd.Series) -> LinearRegression:
-    """Trains the linear regression model.
+def evaluate(predictions: pd.DataFrame) -> Dict:
+    y_true = predictions["y_true"].to_numpy()
+    y_pred = predictions["y_pred"].to_numpy()
 
-    Args:
-        X_train: Training data of independent features.
-        y_train: Training data for price.
-
-    Returns:
-        Trained model.
-    """
-    regressor = LinearRegression()
-    regressor.fit(X_train, y_train)
-    return regressor
-
-
-def evaluate_model(
-    regressor: LinearRegression, X_test: pd.DataFrame, y_test: pd.Series
-) -> dict[str, float]:
-    """Calculates and logs the coefficient of determination.
-
-    Args:
-        regressor: Trained model.
-        X_test: Testing data of independent features.
-        y_test: Testing data for price.
-    """
-    y_pred = regressor.predict(X_test)
-    score = r2_score(y_test, y_pred)
-    mae = mean_absolute_error(y_test, y_pred)
-    me = max_error(y_test, y_pred)
-    logger = logging.getLogger(__name__)
-    logger.info("Model has a coefficient R^2 of %.3f on test data.", score)
-    return {"r2_score": score, "mae": mae, "max_error": me}
+    return {
+        "rmse": float(np.sqrt(mean_squared_error(y_true, y_pred))),
+        "mae": float(mean_absolute_error(y_true, y_pred)),
+        "r2": float(r2_score(y_true, y_pred)),
+        "n_test": int(len(predictions)),
+    }

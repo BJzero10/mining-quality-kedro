@@ -1,55 +1,67 @@
-import matplotlib
-import matplotlib.pyplot as plt
+from __future__ import annotations
+
 import pandas as pd
-import plotly.express as px  # noqa:  F401
-import plotly.graph_objs as go
-import seaborn as sn
+import matplotlib.pyplot as plt
+import shap
+from xgboost import XGBRegressor
 
 
-# This function uses plotly.express
-def compare_passenger_capacity_exp(preprocessed_shuttles: pd.DataFrame):
-    return (
-        preprocessed_shuttles.groupby(["shuttle_type"])
-        .mean(numeric_only=True)
-        .reset_index()
-    )
-
-
-# This function uses plotly.graph_objects
-def compare_passenger_capacity_go(preprocessed_shuttles: pd.DataFrame):
-
-    data_frame = (
-        preprocessed_shuttles.groupby(["shuttle_type"])
-        .mean(numeric_only=True)
-        .reset_index()
-    )
-    fig = go.Figure(
-        [
-            go.Bar(
-                x=data_frame["shuttle_type"],
-                y=data_frame["passenger_capacity"],
-            )
-        ]
-    )
-
+def plot_target_timeseries(hourly_df: pd.DataFrame, date_col: str, target_col: str):
+    """Plot del target resampleado (serie de tiempo)."""
+    df = hourly_df.sort_values(date_col)
+    fig = plt.figure()
+    plt.plot(df[date_col], df[target_col])
+    plt.title(f"Target over time (resampled): {target_col}")
+    plt.xlabel(date_col)
+    plt.ylabel(target_col)
+    plt.tight_layout()
     return fig
 
 
-def create_confusion_matrix(companies: pd.DataFrame):
-    matplotlib.use('Agg')
-
-    actuals = [0, 1, 0, 0, 1, 1, 1, 0, 1, 0, 1]
-    predicted = [1, 1, 0, 1, 0, 1, 0, 0, 0, 1, 1]
-    data = {"y_Actual": actuals, "y_Predicted": predicted}
-    df = pd.DataFrame(data, columns=["y_Actual", "y_Predicted"])
-
-    confusion_matrix = pd.crosstab(
-        df["y_Actual"], df["y_Predicted"], rownames=["Actual"], colnames=["Predicted"]
-    )
-
-    fig, ax = plt.subplots(figsize=(8, 6))
-    sn.heatmap(confusion_matrix, annot=True, fmt='d', cmap='Blues', ax=ax)
-    ax.set_title('Confusion Matrix')
+def plot_pred_vs_true(predictions: pd.DataFrame, date_col: str):
+    """Plot y_true vs y_pred en el tiempo."""
+    df = predictions.sort_values(date_col)
+    fig = plt.figure()
+    plt.plot(df[date_col], df["y_true"], label="y_true")
+    plt.plot(df[date_col], df["y_pred"], label="y_pred")
+    plt.title("Prediction vs True (time)")
+    plt.xlabel(date_col)
+    plt.ylabel("value")
+    plt.legend()
     plt.tight_layout()
+    return fig
 
+
+def plot_residuals(predictions: pd.DataFrame, date_col: str):
+    """Plot residuals en el tiempo."""
+    df = predictions.sort_values(date_col)
+    fig = plt.figure()
+    plt.plot(df[date_col], df["residual"])
+    plt.title("Residuals over time (y_true - y_pred)")
+    plt.xlabel(date_col)
+    plt.ylabel("residual")
+    plt.tight_layout()
+    return fig
+
+
+def shap_summary_plot(
+    model: XGBRegressor,
+    train_df: pd.DataFrame,
+    target_col: str,
+    date_col: str,
+    max_samples: int = 5000,
+):
+    """SHAP summary plot (beeswarm)."""
+    X = train_df.drop(columns=[target_col])
+    if date_col in X.columns:
+        X = X.drop(columns=[date_col])
+
+    Xs = X.sample(n=min(len(X), max_samples), random_state=42) if len(X) > max_samples else X
+
+    explainer = shap.TreeExplainer(model)
+    shap_values = explainer.shap_values(Xs)
+
+    fig = plt.figure()
+    shap.summary_plot(shap_values, Xs, show=False)
+    plt.tight_layout()
     return fig

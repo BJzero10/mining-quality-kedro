@@ -1,7 +1,10 @@
-target_col: "% Silica Concentrate"
 date_col: "date"
+target_col: "% Silica Concentrate"
 test_size: 0.2
-resample_rule: "1h"   # opción A: promedio por hora
+resample_rule: "1h"
+
+shap_max_samples: 5000
+
 xgb_params:
   n_estimators: 600
   max_depth: 6

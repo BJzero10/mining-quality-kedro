@@ -1,68 +1,62 @@
+from __future__ import annotations
+
+from typing import Tuple
+import numpy as np
 import pandas as pd
 
 
-def _is_true(x: pd.Series) -> pd.Series:
-    return x == "t"
-
-
-def _parse_percentage(x: pd.Series) -> pd.Series:
-    x = x.str.replace("%", "")
-    x = x.astype(float) / 100
-    return x
-
-
-def _parse_money(x: pd.Series) -> pd.Series:
-    x = x.str.replace("$", "").str.replace(",", "")
-    x = x.astype(float)
-    return x
-
-
-def preprocess_companies(companies: pd.DataFrame) -> pd.DataFrame:
-    """Preprocesses the data for companies.
-
-    Args:
-        companies: Raw data.
-    Returns:
-        Preprocessed data, with `company_rating` converted to a float and
-        `iata_approved` converted to boolean.
+def validate_and_sort(df: pd.DataFrame, date_col: str) -> pd.DataFrame:
     """
-    companies["iata_approved"] = _is_true(companies["iata_approved"])
-    companies["company_rating"] = _parse_percentage(companies["company_rating"])
-    return companies
-
-
-def preprocess_shuttles(shuttles: pd.DataFrame) -> pd.DataFrame:
-    """Preprocesses the data for shuttles.
-
-    Args:
-        shuttles: Raw data.
-    Returns:
-        Preprocessed data, with `price` converted to a float and `d_check_complete`,
-        `moon_clearance_complete` converted to boolean.
+    Assumes catalog already parsed dates and decimals (Kaggle-style load_args).
+    - Validates required column exists
+    - Ensures datetime
+    - Sorts by date
+    - Drops duplicate timestamps (keep last)
     """
-    shuttles["d_check_complete"] = _is_true(shuttles["d_check_complete"])
-    shuttles["moon_clearance_complete"] = _is_true(shuttles["moon_clearance_complete"])
-    shuttles["price"] = _parse_money(shuttles["price"])
-    return shuttles
+    if date_col not in df.columns:
+        raise ValueError(f"'{date_col}' no existe. Columnas: {list(df.columns)}")
+
+    out = df.copy()
+
+    # Ensure datetime (catalog should do it, but keep it robust)
+    out[date_col] = pd.to_datetime(out[date_col], errors="coerce")
+    out = out.dropna(subset=[date_col])
+
+    out = out.sort_values(date_col).drop_duplicates(subset=[date_col], keep="last")
+    out = out.reset_index(drop=True)
+
+    return out
 
 
-def create_model_input_table(
-    shuttles: pd.DataFrame, companies: pd.DataFrame, reviews: pd.DataFrame
-) -> pd.DataFrame:
-    """Combines all data to create a model input table.
+def resample_time(df: pd.DataFrame, date_col: str, rule: str) -> pd.DataFrame:
+    """Resample by time (e.g., '1h') using mean aggregation."""
+    if df.empty:
+        return df.copy()
 
-    Args:
-        shuttles: Preprocessed data for shuttles.
-        companies: Preprocessed data for companies.
-        reviews: Raw data for reviews.
-    Returns:
-        Model input table.
+    # compatibility guard
+    rule = rule.replace("H", "h")
 
-    """
-    rated_shuttles = shuttles.merge(reviews, left_on="id", right_on="shuttle_id")
-    rated_shuttles = rated_shuttles.drop("id", axis=1)
-    model_input_table = rated_shuttles.merge(
-        companies, left_on="company_id", right_on="id"
-    )
-    model_input_table = model_input_table.dropna()
-    return model_input_table
+    out = df.copy()
+    out = out.set_index(pd.DatetimeIndex(out[date_col]))
+    out = out.drop(columns=[date_col])
+
+    out = out.resample(rule).mean()
+    out = out.dropna(axis=0, how="any")
+
+    out = out.reset_index().rename(columns={"index": date_col})
+    return out
+
+
+def time_split(df: pd.DataFrame, date_col: str, test_size: float) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """Time-ordered split (no shuffle)."""
+    if not 0.0 < test_size < 1.0:
+        raise ValueError("test_size debe estar entre 0 y 1")
+
+    out = df.sort_values(date_col).reset_index(drop=True)
+    n = len(out)
+    cut = int(np.floor(n * (1.0 - test_size)))
+    cut = max(1, min(cut, n - 1))
+
+    train_df = out.iloc[:cut].copy()
+    test_df = out.iloc[cut:].copy()
+    return train_df, test_df
